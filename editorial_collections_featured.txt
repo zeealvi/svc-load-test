@@ -1,0 +1,87 @@
+local function get_token(str)
+  
+  	if(str == "client_credentials") then
+    
+    	local post_data = "grant_type=client_credentials"
+
+		post_data = post_data .. "&client_id=f6c5cebfd9749f8d8a29"
+		post_data = post_data .. "&client_secret=bab8e3b9c8cd3bc31df0c0469deb5280206d192a"
+
+		-- log.info(post_data)
+
+		local response = http.request_batch({ 
+	         {'POST', 'https://login-test.i.dsc.tv/v1/oauth2/token', data=post_data, response_body_bytes=20000} 
+	     }) 
+
+		local response_body = response[1]['body'] 
+
+		-- log.info("Body: " .. response_body)
+
+		token = response_body
+
+		token = string.gsub(token, ".*access_token\":\"", "")
+		token = string.gsub(token, "\".*", "")
+   
+   		return token  
+    elseif (str == "user-agent") then
+    	local login_url = "https://login-test.i.dsc.tv/v1/oauth2/authorize"
+
+
+		local redirect = "http://www.discovery.com/"
+		-- log.info("Redirect Encoded: " .. redirect)
+
+		local long_url = login_url .. "?client_id=3675f67396fbe93e72f9&redirect_uri=" .. redirect .. 	"&response_type=anonymous&state=test"
+
+		-- log.info("URL: " .. long_url)
+
+		local resp = http.get(
+			{"GET", long_url, auto_redirect=false, auto_decompress=true}
+		)
+
+
+		--[[	
+    	log.info("body: " .. resp.body)
+		log.info("body_size: " .. resp.body_size)
+		log.info("status_code: " .. resp.status_code)
+		log.info("content_type: " .. resp.content_type)
+		log.info("header_size: " .. resp.header_size)
+		log.info("Headers:")
+		--]]
+    
+		for k,v in pairs(resp.headers) do
+			-- log.info("         " .. k .. " = " .. v[1])
+      		if (k == "Location") then
+        		token = string.gsub(v[1], ".*access_token=", "")
+				token = string.gsub(token, "&.*", "")
+        	end
+		end
+      
+		return token
+    else
+    	return nil
+    end
+end
+
+
+local token = get_token("client_credentials")
+-- log.info(token)
+
+-- Initialize data store
+local networks = datastore.open("Networks")
+
+for i = 2, networks:get_length() do 
+	local id = networks:get(i)
+	-- log.info("Network: " .. id[1] .. ", ID: " .. id[2])
+
+  	local api = "editorial/collections/featured?platform=desktop&type=all"
+	local url_string = "https://api-test.i.dsc.tv/v1/content/" .. api .. "&networks.id=" .. id[2] .. "&access_token=" .. token
+
+  	-- log.info("URL: " .. url_string)  
+
+  	response = http.get(url_string)
+  	-- log.info("time_to_first_byte: " .. response.time_to_first_byte)
+  	-- log.info("Body Size: " .. response.body_size)
+  	if (response.status_code ~= 200) then
+    	log.info("Status Code: " .. response.status_code)
+    end
+end
